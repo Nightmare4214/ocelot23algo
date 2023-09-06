@@ -12,13 +12,14 @@ def main(dataset_root_path, subset):
     -----------
     dataset_root_path: str
         path to the dataset. (e.g. /home/user/ocelot2023_v0.1.1)
-    
+
     subset: str
         `train` or `val` or `test`.
     """
 
     assert os.path.exists(f"{dataset_root_path}/annotations/{subset}")
-    gt_paths = sorted(glob.glob(f"{dataset_root_path}/annotations/{subset}/cell/*.csv"))
+    gt_paths = sorted(
+        glob.glob(f"{dataset_root_path}/annotations/{subset}/cell/*.csv"))
     num_images = len(gt_paths)
 
     gt_json = {
@@ -30,7 +31,7 @@ def main(dataset_root_path, subset):
             "minor": 0,
         }
     }
-    
+
     for idx, gt_path in enumerate(gt_paths):
         with open(gt_path, "r") as f:
             lines = f.read().splitlines()
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset_root_path", type=str, required=True,
                         help="Path to the dataset. (e.g. /home/user/ocelot2023_v0.1.1)")
-    parser.add_argument("-s", "--subset", type=str, required=True, 
+    parser.add_argument("-s", "--subset", type=str, required=True,
                         choices=["train", "val", "test"],
                         help="Which subset among (trn, val, test)?")
     args = parser.parse_args()

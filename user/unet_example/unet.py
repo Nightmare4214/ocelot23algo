@@ -21,10 +21,12 @@ class DoubleConv(nn.Module):
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(in_channels, mid_channels,
+                      kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(mid_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(mid_channels, out_channels,
+                      kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
@@ -55,10 +57,12 @@ class Up(nn.Module):
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.up = nn.Upsample(
+                scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+            self.up = nn.ConvTranspose2d(
+                in_channels, in_channels // 2, kernel_size=2, stride=2)
             self.conv = DoubleConv(in_channels, out_channels)
 
     def forward(self, x1, x2):
@@ -131,12 +135,13 @@ class PytorchUnetCellModel():
         Dataset metadata in case you wish to compute statistics
 
     """
+
     def __init__(self, metadata):
         self.device = torch.device('cuda:0')
         self.metadata = metadata
-        self.resize_to = (512, 512) # The model is trained with 512 resolution
+        self.resize_to = (512, 512)  # The model is trained with 512 resolution
         # RGB images and 2 class prediction
-        self.n_classes =  3 # Two cell classes and background
+        self.n_classes = 3  # Two cell classes and background
 
         self.unet = UNet(n_channels=3, n_classes=self.n_classes)
         self.load_checkpoint()
@@ -146,8 +151,10 @@ class PytorchUnetCellModel():
     def load_checkpoint(self):
         """Loading the trained weights to be used for validation"""
         _curr_path = os.path.split(__file__)[0]
-        _path_to_checkpoint = os.path.join(_curr_path, "checkpoints/ocelot_unet.pth")
-        state_dict = torch.load(_path_to_checkpoint, map_location=torch.device('cpu'))
+        _path_to_checkpoint = os.path.join(
+            _curr_path, "checkpoints/ocelot_unet.pth")
+        state_dict = torch.load(_path_to_checkpoint,
+                                map_location=torch.device('cpu'))
         self.unet.load_state_dict(state_dict, strict=True)
         print("Weights were successfully loaded!")
 
@@ -165,15 +172,16 @@ class PytorchUnetCellModel():
             torch.tensor of shape [1, 3, 1024, 1024] where the first axis is the batch
             dimension
         """
-        cell_patch = torch.from_numpy(cell_patch).permute((2, 0, 1)).unsqueeze(0)
+        cell_patch = torch.from_numpy(
+            cell_patch).permute((2, 0, 1)).unsqueeze(0)
         cell_patch = cell_patch.to(self.device).type(torch.cuda.FloatTensor)
-        cell_patch = cell_patch / 255 # normalize [0-1]
+        cell_patch = cell_patch / 255  # normalize [0-1]
         if self.resize_to is not None:
-            cell_patch= F.interpolate(
-                    cell_patch, size=self.resize_to, mode="bilinear", align_corners=True
+            cell_patch = F.interpolate(
+                cell_patch, size=self.resize_to, mode="bilinear", align_corners=True
             ).detach()
         return cell_patch
-        
+
     def find_cells(self, heatmap):
         """This function detects the cells in the output heatmap
 
@@ -186,23 +194,25 @@ class PytorchUnetCellModel():
         -------
             List[tuple]: for each predicted cell we provide the tuple (x, y, cls, score)
         """
-        arr = heatmap[0,:,:,:].cpu().detach().numpy()
+        arr = heatmap[0, :, :, :].cpu().detach().numpy()
         # arr = np.transpose(arr, (1, 2, 0)) # CHW -> HWC
 
-        bg, pred_wo_bg = np.split(arr, (1,), axis=0) # Background and non-background channels
+        # Background and non-background channels
+        bg, pred_wo_bg = np.split(arr, (1,), axis=0) # bg(1, 1024, 1024), pred_wo_bg(2, 1024, 1024)
         bg = np.squeeze(bg, axis=0)
         obj = 1.0 - bg
 
         arr = cv2.GaussianBlur(obj, (0, 0), sigmaX=3)
         peaks = feature.peak_local_max(
             arr, min_distance=3, exclude_border=0, threshold_abs=0.0
-        ) # List[y, x]
+        )  # List[y, x]
 
         maxval = np.max(pred_wo_bg, axis=0)
         maxcls_0 = np.argmax(pred_wo_bg, axis=0)
 
         # Filter out peaks if background score dominates
-        peaks = np.array([peak for peak in peaks if bg[peak[0], peak[1]] < maxval[peak[0], peak[1]]])
+        peaks = np.array(
+            [peak for peak in peaks if bg[peak[0], peak[1]] < maxval[peak[0], peak[1]]])
         if len(peaks) == 0:
             return []
 
@@ -210,14 +220,15 @@ class PytorchUnetCellModel():
         scores = maxval[peaks[:, 0], peaks[:, 1]]
         peak_class = maxcls_0[peaks[:, 0], peaks[:, 1]]
 
-        predicted_cells = [(x, y, c + 1, float(s)) for [y, x], c, s in zip(peaks, peak_class, scores)]
+        predicted_cells = [(x, y, c + 1, float(s))
+                           for [y, x], c, s in zip(peaks, peak_class, scores)]
 
         return predicted_cells
 
     def post_process(self, logits):
         """This function applies some post processing to the
         output logits
-        
+
         Parameters
         ----------
         logits: torch.tensor
@@ -229,8 +240,8 @@ class PytorchUnetCellModel():
         """
         if self.resize_to is not None:
             logits = F.interpolate(logits, size=SAMPLE_SHAPE[:2],
-                mode='bilinear', align_corners=False
-            )
+                                   mode='bilinear', align_corners=False
+                                   )
         return torch.softmax(logits, dim=1)
 
     def __call__(self, cell_patch, tissue_patch, pair_id):

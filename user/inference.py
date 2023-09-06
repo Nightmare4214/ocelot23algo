@@ -9,6 +9,7 @@ class Model():
         Dataset metadata in case you wish to compute statistics
 
     """
+
     def __init__(self, metadata):
         self.metadata = metadata
 
@@ -43,8 +44,8 @@ class Model():
         prediction = np.copy(cell_patch[:, :, 2])
         prediction[(cell_patch[:, :, 2] <= 40)] = 1
         xs, ys = np.where(prediction.transpose() == 1)
-        class_id = [1] * len(xs) # Type of cell
-        probs = [1.0] * len(xs) # Confidence score
+        class_id = [1] * len(xs)  # Type of cell
+        probs = [1.0] * len(xs)  # Confidence score
 
         #############################################
         ####### RETURN RESULS PER SAMPLE ############
